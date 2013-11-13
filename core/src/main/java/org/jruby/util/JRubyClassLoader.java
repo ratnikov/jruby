@@ -129,12 +129,12 @@ public class JRubyClassLoader extends URLClassLoader implements ClassDefiningCla
         } catch (ClassNotFoundException ex) {
             String resourceName = className.replace('.', '/').concat(".class");
 
-            URL classUrl = null;
+            InputStream classInputStream = null;
             synchronized (jarIndexes) {
                 for (URL jarUrl : jarIndexes.keySet()) {
                     if (jarIndexes.get(jarUrl).contains(resourceName)) {
                         try {
-                            classUrl = CompoundJarURLStreamHandler.createUrl(jarUrl, resourceName);
+                            classInputStream = CompoundJarHandler.openCompoundStream(jarUrl, resourceName);
                             break;
                         } catch (IOException e) {
                             // keep going to next URL
@@ -143,9 +143,9 @@ public class JRubyClassLoader extends URLClassLoader implements ClassDefiningCla
                 }
             }
 
-            if (classUrl != null) {
+            if (classInputStream != null) {
                 try {
-                    InputStream input = classUrl.openStream();
+                    InputStream input = classInputStream;
                     try {
                         byte[] buffer = new byte[4096];
                         ByteArrayOutputStream output = new ByteArrayOutputStream();
