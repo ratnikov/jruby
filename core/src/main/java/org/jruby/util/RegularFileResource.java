@@ -57,7 +57,8 @@ public class RegularFileResource implements FileResource {
 
     @Override
     public boolean exists() {
-        return file.exists();
+        // MRI behavior: Even broken symlinks should return true.
+        return file.exists() || isSymLink();
     }
 
     @Override
@@ -72,23 +73,11 @@ public class RegularFileResource implements FileResource {
 
     @Override
     public boolean isSymLink() {
-        // java.io.File doesn't readily tells whether a file is a symlink,
-        // so rely on getCanonicalFile to expand symbolic links behavior to judge
         try {
-            File canon;
-            if (file.getParent() == null) {
-                canon = file;
-            } else {
-                File canonDir;
-                canonDir = file.getParentFile().getCanonicalFile();
-
-                canon = new File(canonDir, file.getName());
-            }
-            return !canon.getCanonicalFile().equals(canon.getAbsoluteFile());
-        } catch (IOException e) {
+            return lstat().isSymlink();
+        } catch (Throwable e) {
             return false;
         }
-
     }
 
     @Override

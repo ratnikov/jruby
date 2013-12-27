@@ -326,18 +326,7 @@ public class RubyFileTest {
         Ruby runtime = recv.getRuntime();
         FileResource file = file(filename);
 
-        try {
-            // Note: We can't use file.exists() to check whether the symlink
-            // exists or not, because that method returns false for existing
-            // but broken symlink. So, we try without the existence check,
-            // but in the try-catch block.
-            // MRI behavior: symlink? on broken symlink should return true.
-            return runtime.newBoolean(file.lstat().isSymlink());
-        } catch (SecurityException re) {
-            return runtime.getFalse();
-        } catch (RaiseException re) {
-            return runtime.getFalse();
-        }
+        return runtime.newBoolean(file.isSymLink());
     }
 
     // We do both writable and writable_real through the same method because
