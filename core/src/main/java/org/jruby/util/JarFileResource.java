@@ -3,6 +3,7 @@ package org.jruby.util;
 import org.jruby.RubyFile;
 import org.jruby.Ruby;
 
+import java.io.InputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -20,7 +21,7 @@ import java.util.jar.JarEntry;
  * directory do, or Dir.glob would break.
  * </p>
  */
-class JarFileResource extends JarResource {
+public class JarFileResource extends JarResource {
   public static JarFileResource create(JarFile jar, String path) {
     JarEntry entry = jar.getJarEntry(path);
     return ((entry != null) && !entry.isDirectory()) ? new JarFileResource(jar, entry) : null;
@@ -62,5 +63,16 @@ class JarFileResource extends JarResource {
   public String[] list() {
     // Files cannot be listed
     return null;
+  }
+
+  public InputStream getInputStream() throws IOException {
+    return jar.getInputStream(entry);
+  }
+
+  // ---- Visitor pattern ----
+
+  @Override
+  public <T> T accept(FileResource.Visitor<T> visitor) {
+    return visitor.visit(this);
   }
 }

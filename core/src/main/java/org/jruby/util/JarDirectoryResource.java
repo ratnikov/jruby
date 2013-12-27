@@ -12,7 +12,7 @@ import java.util.jar.JarEntry;
  * view, if a jar contains entry /foo/bar, it already contains /foo directory. This resource permits
  * just that.</p>
  */
-class JarDirectoryResource extends JarResource {
+public class JarDirectoryResource extends JarResource {
     public static JarDirectoryResource create(JarFile jar, String path) {
         String dirPath = path.endsWith("/") ? path : path + "/";
 
@@ -96,5 +96,10 @@ class JarDirectoryResource extends JarResource {
 
     public boolean isRoot() {
         return "/".equals(path);
+    }
+
+    @Override
+    public <T> T accept(FileResource.Visitor<T> visitor) {
+        return visitor.visit(this);
     }
 }

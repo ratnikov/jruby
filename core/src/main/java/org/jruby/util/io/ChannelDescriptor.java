@@ -51,8 +51,6 @@ import java.nio.channels.WritableByteChannel;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.jar.JarFile;
-import java.util.zip.ZipEntry;
 import org.jruby.RubyFile;
 
 import jnr.posix.POSIX;
@@ -795,133 +793,35 @@ public class ChannelDescriptor {
      * @throws java.io.IOException if there is an exception during IO
      */
     public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix, ClassLoader classLoader) throws FileNotFoundException, DirectoryAsFileException, FileExistsException, IOException {
-        boolean fileCreated = false;
         if (path.equals("/dev/null") || path.equalsIgnoreCase("nul:") || path.equalsIgnoreCase("nul")) {
             Channel nullChannel = new NullChannel();
             // FIXME: don't use RubyIO for this
             return new ChannelDescriptor(nullChannel, flags);
-        } else if (path.startsWith("file:")) {
-            int bangIndex = path.indexOf("!");
-            if (bangIndex > 0) {
-                String filePath = path.substring(5, bangIndex);
-                String internalPath = path.substring(bangIndex + 2);
+        }
 
-                if (!new File(filePath).exists()) {
-                    throw new FileNotFoundException(path);
-                }
-
-                JarFile jf = new JarFile(filePath);
-                ZipEntry entry = RubyFile.getFileEntry(jf, internalPath);
-
-                if (entry == null) {
-                    throw new FileNotFoundException(path);
-                }
-
-                InputStream is = jf.getInputStream(entry);
-                // FIXME: don't use RubyIO for this
-                return new ChannelDescriptor(Channels.newChannel(is), flags);
-            } else {
-                // raw file URL, just open directly
-                URL url = new URL(path);
-                InputStream is = url.openStream();
-                // FIXME: don't use RubyIO for this
-                return new ChannelDescriptor(Channels.newChannel(is), flags);
-            }
-        } else if (path.startsWith("classpath:/") && classLoader != null) {
+        if (path.startsWith("classpath:/") && classLoader != null) {
             path = path.substring("classpath:/".length());
             InputStream is = classLoader.getResourceAsStream(path);
             // FIXME: don't use RubyIO for this
             return new ChannelDescriptor(Channels.newChannel(is), flags);
-        } else {
-            JRubyFile theFile = JRubyFile.create(cwd,path);
-
-            if (theFile.isDirectory() && flags.isWritable()) {
-                throw new DirectoryAsFileException();
-            }
-
-            if (flags.isCreate()) {
-                try {
-                    fileCreated = theFile.createNewFile();
-                    
-                    if (!fileCreated && flags.isExclusive()) {
-                        throw new FileExistsException(path);
-                    }
-                } catch (IOException ioe) {
-                    // See JRUBY-4380.
-                    // MRI behavior: raise Errno::ENOENT in case
-                    // when the directory for the file doesn't exist.
-                    // Java in such cases just throws IOException.
-                    File parent = theFile.getParentFile();
-                    if (parent != null && parent != theFile && !parent.exists()) {
-                        throw new FileNotFoundException(path);
-                    } else if (!theFile.canWrite()) {
-                        throw new PermissionDeniedException(path);
-                    } else {
-                        // for all other IO errors, just re-throw the original exception
-                        throw ioe;
-                    }
-                }
-            } else {
-                if (!theFile.exists()) {
-                    throw new FileNotFoundException(path);
-                }
-            }
-
-            FileDescriptor fileDescriptor;
-            FileChannel fileChannel;
-            
-            /* Because RandomAccessFile does not provide a way to pass append
-             * mode, we must manually seek if using RAF. FileOutputStream,
-             * however, does properly honor append mode at the lowest levels,
-             * reducing append write costs when we're only doing writes.
-             * 
-             * The code here will use a FileOutputStream if we're only writing,
-             * setting isInAppendMode to true to disable our manual seeking.
-             * 
-             * RandomAccessFile does not handle append for us, so if we must
-             * also be readable we pass false for isInAppendMode to indicate
-             * we need manual seeking.
-             */
-            boolean isInAppendMode;
-            if (flags.isWritable() && !flags.isReadable()) {
-                FileOutputStream fos = new FileOutputStream(theFile, flags.isAppendable());
-                fileChannel = fos.getChannel();
-                fileDescriptor = fos.getFD();
-                isInAppendMode = true;
-            } else {
-                RandomAccessFile raf = new RandomAccessFile(theFile, flags.toJavaModeString());
-                fileChannel = raf.getChannel();
-                fileDescriptor = raf.getFD();
-                isInAppendMode = false;
-            }
-
-            // call chmod after we created the RandomAccesFile
-            // because otherwise, the file could be read-only
-            if (fileCreated) {
-                // attempt to set the permissions, if we have been passed a POSIX instance,
-                // perm is > 0, and only if the file was created in this call.
-                if (posix != null && perm > 0) {
-                    posix.chmod(theFile.getPath(), perm);
-                }
-            }
-
-            try {
-                if (flags.isTruncate()) fileChannel.truncate(0);
-            } catch (IOException ioe) {
-                if (ioe.getMessage().equals("Illegal seek")) {
-                    // ignore; it's a pipe or fifo that can't be truncated
-                } else {
-                    throw ioe;
-                }
-            }
-
-            // TODO: append should set the FD to end, no? But there is no seek(int) in libc!
-            //if (modes.isAppendable()) seek(0, Stream.SEEK_END);
-
-            return new ChannelDescriptor(fileChannel, flags, fileDescriptor, isInAppendMode);
         }
+
+        if (path.startsWith("file:")) {
+          // try it as raw file URL
+          try {
+            URL url = new URL(path);
+            return new ChannelDescriptor(Channels.newChannel(url.openStream()), flags);
+          } catch (IOException ioError) {
+            // Failed to read as url, but that's okay because we can backdrop to read it as a
+            // FileResource instead
+          }
+        }
+
+        ChannelDescriptorResourceVisitor resourceVisitor =
+            new ChannelDescriptorResourceVisitor(flags, perm, posix);
+        return resourceVisitor.visitOrThrow(JRubyFile.createResource(cwd, path));
     }
-    
+
     /**
      * Close this descriptor. If in closing the last ChannelDescriptor reference
      * to the associate channel is closed, the channel itself will be closed.
@@ -931,36 +831,34 @@ public class ChannelDescriptor {
      * @throws java.io.IOException if there is an exception during IO
      */
     public void close() throws BadDescriptorException, IOException {
-        // tidy up
-        finish(true);
+      // tidy up
+      finish(true);
 
     }
 
     void finish(boolean close) throws BadDescriptorException, IOException {
-        synchronized (refCounter) {
-            // if refcount is at or below zero, we're no longer valid
-            if (refCounter.get() <= 0) {
-                throw new BadDescriptorException();
-            }
+      synchronized (refCounter) {
+        // if refcount is at or below zero, we're no longer valid
+        if (refCounter.get() <= 0) {
+          throw new BadDescriptorException();
+        }
 
-            // if channel is already closed, we're no longer valid
-            if (!channel.isOpen()) {
-                throw new BadDescriptorException();
-            }
+        // if channel is already closed, we're no longer valid
+        if (!channel.isOpen()) {
+          throw new BadDescriptorException();
+        }
 
-            // otherwise decrement and possibly close as normal
-            if (close) {
-                int count = refCounter.decrementAndGet();
+        // otherwise decrement and possibly close as normal
+        int count = refCounter.decrementAndGet();
 
-                if (DEBUG) LOG.info("Descriptor for fileno {} refs: {}", internalFileno, count);
+        if (DEBUG) LOG.info("Descriptor for fileno {} refs: {}", internalFileno, count);
 
-                if (count <= 0) {
-                    // if we're the last referrer, close the channel
-                    try {
-                        channel.close();
-                    } finally {
-                        unregisterDescriptor(internalFileno);
-                    }
+        if (count <= 0) {
+          // if we're the last referrer, close the channel
+          try {
+            if (close) channel.close();
+                } finally {
+                    unregisterDescriptor(internalFileno);
                 }
             }
         }

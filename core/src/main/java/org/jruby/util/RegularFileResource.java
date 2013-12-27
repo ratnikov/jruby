@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Represents a "regular" file, backed by regular file system.
  */
-class RegularFileResource implements FileResource {
+public class RegularFileResource implements FileResource {
     private final JRubyFile file;
     private final POSIX posix;
     private FileStat lazyLstat = null;
@@ -118,8 +118,20 @@ class RegularFileResource implements FileResource {
         return lazyLstat;
     }
 
+    public JRubyFile getFile() {
+        return file;
+    }
+
     @Override
     public String toString() {
         return file.toString();
     }
+
+    // ---- Visitor pattern ----
+
+    @Override
+    public <T> T accept(FileResource.Visitor<T> visitor) {
+        return visitor.visit(this);
+    }
+
 }

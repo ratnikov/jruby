@@ -28,7 +28,9 @@
  ***** END LICENSE BLOCK *****/
 package org.jruby.util.io;
 
-public class FileExistsException extends Throwable {
+import java.io.IOException;
+
+public class FileExistsException extends IOException {
     public FileExistsException(String path) {
         super("file exists: " + path);
     }
