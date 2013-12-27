@@ -57,8 +57,6 @@ import java.util.Enumeration;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import org.jcodings.specific.ASCIIEncoding;
 
 import org.jruby.anno.JRubyClass;
@@ -79,6 +77,7 @@ import org.jruby.util.io.PermissionDeniedException;
 import org.jruby.util.io.Stream;
 import org.jruby.util.io.ChannelStream;
 import org.jruby.util.io.IOOptions;
+import org.jruby.util.FileResource;
 import org.jruby.util.JRubyFile;
 import org.jruby.util.TypeConverter;
 import org.jruby.util.io.BadDescriptorException;
@@ -566,13 +565,13 @@ public class RubyFile extends RubyIO implements EncodingCapable {
         int count = 0;
         RubyInteger mode = args[0].convertToInteger();
         for (int i = 1; i < args.length; i++) {
-            JRubyFile filename = file(args[i]);
+            FileResource filename = file(args[i]);
             
             if (!filename.exists()) {
                 throw runtime.newErrnoENOENTError(filename.toString());
             }
             
-            if (0 != runtime.getPosix().chmod(filename.getAbsolutePath(), (int)mode.getLongValue())) {
+            if (0 != runtime.getPosix().chmod(filename.absolutePath(), (int)mode.getLongValue())) {
                 throw runtime.newErrnoFromLastPOSIXErrno();
             } else {
                 count++;
@@ -597,13 +596,13 @@ public class RubyFile extends RubyIO implements EncodingCapable {
             group = RubyNumeric.num2int(args[1]);
         }
         for (int i = 2; i < args.length; i++) {
-            JRubyFile filename = file(args[i]);
+            FileResource filename = file(args[i]);
 
             if (!filename.exists()) {
                 throw runtime.newErrnoENOENTError(filename.toString());
             }
             
-            if (0 != runtime.getPosix().chown(filename.getAbsolutePath(), owner, group)) {
+            if (0 != runtime.getPosix().chown(filename.absolutePath(), owner, group)) {
                 throw runtime.newErrnoFromLastPOSIXErrno();
             } else {
                 count++;
@@ -846,8 +845,8 @@ public class RubyFile extends RubyIO implements EncodingCapable {
         int count = 0;
         RubyInteger mode = args[0].convertToInteger();
         for (int i = 1; i < args.length; i++) {
-            JRubyFile file = file(args[i]);
-            if (0 != runtime.getPosix().lchmod(file.toString(), (int)mode.getLongValue())) {
+            FileResource file = file(args[i]);
+            if (0 != runtime.getPosix().lchmod(file.absolutePath(), (int)mode.getLongValue())) {
                 throw runtime.newErrnoFromLastPOSIXErrno();
             } else {
                 count++;
@@ -865,9 +864,9 @@ public class RubyFile extends RubyIO implements EncodingCapable {
         int count = 0;
 
         for (int i = 2; i < args.length; i++) {
-            JRubyFile file = file(args[i]);
+            FileResource file = file(args[i]);
 
-            if (0 != runtime.getPosix().lchown(file.toString(), owner, group)) {
+            if (0 != runtime.getPosix().lchown(file.absolutePath(), owner, group)) {
                 throw runtime.newErrnoFromLastPOSIXErrno();
             } else {
                 count++;
@@ -971,10 +970,10 @@ public class RubyFile extends RubyIO implements EncodingCapable {
     @JRubyMethod(required = 1, meta = true)
     public static IRubyObject readlink(ThreadContext context, IRubyObject recv, IRubyObject path) {
         Ruby runtime = context.runtime;
-        JRubyFile link = file(path);
+        FileResource link = file(path);
         
         try {
-            String realPath = runtime.getPosix().readlink(link.toString());
+            String realPath = runtime.getPosix().readlink(link.absolutePath());
         
             if (!RubyFileTest.exist_p(recv, path).isTrue()) {
                 throw runtime.newErrnoENOENTError(path.toString());
@@ -1379,13 +1378,13 @@ public class RubyFile extends RubyIO implements EncodingCapable {
      * Get the fully-qualified JRubyFile object for the path, taking into
      * account the runtime's current directory.
      */
-    public static JRubyFile file(IRubyObject pathOrFile) {
+    public static FileResource file(IRubyObject pathOrFile) {
         Ruby runtime = pathOrFile.getRuntime();
 
         if (pathOrFile instanceof RubyFile) {
-            return JRubyFile.create(runtime.getCurrentDirectory(), ((RubyFile) pathOrFile).getPath());
+            return JRubyFile.createResource(runtime.getCurrentDirectory(), ((RubyFile) pathOrFile).getPath());
         } else if (pathOrFile instanceof RubyIO) {
-            return JRubyFile.create(runtime.getCurrentDirectory(), ((RubyIO) pathOrFile).openFile.getPath());
+            return JRubyFile.createResource(runtime.getCurrentDirectory(), ((RubyIO) pathOrFile).openFile.getPath());
         } else {
             RubyString pathStr = get_path(runtime.getCurrentContext(), pathOrFile);
             ByteList pathByteList = pathStr.getByteList();
@@ -1397,10 +1396,10 @@ public class RubyFile extends RubyIO implements EncodingCapable {
                     path = pathParts[1];
                 }
 
-                return JRubyFile.create(runtime.getCurrentDirectory(), path);
+                return JRubyFile.createResource(runtime.getCurrentDirectory(), path);
             }
 
-            return JRubyFile.create(runtime.getCurrentDirectory(), pathStr.toString());
+            return JRubyFile.createResource(runtime.getCurrentDirectory(), pathStr.toString());
         }
     }
 
@@ -1413,50 +1412,6 @@ public class RubyFile extends RubyIO implements EncodingCapable {
         }
     }
 
-    public static ZipEntry getFileEntry(ZipFile zf, String path) throws IOException {
-        ZipEntry entry = zf.getEntry(path);
-        if (entry == null) {
-            // try canonicalizing the path to eliminate . and .. (JRUBY-4760, JRUBY-4879)
-            String prefix = new File(".").getCanonicalPath();
-            entry = zf.getEntry(new File(path).getCanonicalPath().substring(prefix.length() + 1).replaceAll("\\\\", "/"));
-        }
-        return entry;
-    }
-    
-    public static ZipEntry getDirOrFileEntry(String jar, String path) throws IOException {
-        return getDirOrFileEntry(new JarFile(jar), path);
-    }    
-    
-    public static ZipEntry getDirOrFileEntry(ZipFile zf, String path) throws IOException {
-        String dirPath = path + "/";
-        ZipEntry entry = zf.getEntry(dirPath); // first try as directory
-        if (entry == null) {
-            if (dirPath.length() == 1) {
-                return new ZipEntry(dirPath);
-            }
-            // try canonicalizing the path to eliminate . and .. (JRUBY-4760, JRUBY-4879)
-            String prefix = new File(".").getCanonicalPath();
-            entry = zf.getEntry(new File(dirPath).getCanonicalPath().substring(prefix.length() + 1).replaceAll("\\\\", "/"));
-
-            // JRUBY-6119
-            if (entry == null) {
-                Enumeration<? extends ZipEntry> entries = zf.entries();
-                while (entries.hasMoreElements()) {
-                    String zipEntry = entries.nextElement().getName();
-                    if (zipEntry.startsWith(dirPath)) {
-                        return new ZipEntry(dirPath);
-                    }
-                }
-            }
-
-            if (entry == null) {
-                // try as file
-                entry = getFileEntry(zf, path);
-            }
-        }
-        return entry;
-    }
-    
     // mri: rb_is_absolute_path
     // Do this versus stand up full JRubyFile and perform stats + canonicalization
     private static boolean isAbsolutePath(String path) {
