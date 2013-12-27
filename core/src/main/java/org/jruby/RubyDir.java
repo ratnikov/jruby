@@ -44,7 +44,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
 import jnr.posix.FileStat;
 
 import org.jruby.anno.JRubyMethod;
@@ -62,6 +61,7 @@ import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.util.Dir;
 import org.jruby.util.JRubyFile;
+import org.jruby.util.FileResource;
 import org.jruby.util.ByteList;
 
 /**
@@ -72,7 +72,7 @@ import org.jruby.util.ByteList;
 @JRubyClass(name = "Dir", include = "Enumerable")
 public class RubyDir extends RubyObject {
     private RubyString path;       // What we passed to the constructor for method 'path'
-    protected JRubyFile dir;
+    protected FileResource dir;
     private long lastModified = Long.MIN_VALUE;
     private String[] snapshot;     // snapshot of contents of directory
     private int pos;               // current position in directory
@@ -142,11 +142,9 @@ public class RubyDir extends RubyObject {
         String adjustedPath = RubyFile.adjustRootPathOnWindows(getRuntime(), newPath.toString(), null);
         checkDirIsTwoSlashesOnWindows(getRuntime(), adjustedPath);
 
-        dir = JRubyFile.create(getRuntime().getCurrentDirectory(), adjustedPath);
-        List<String> snapshotList = RubyDir.getEntries(getRuntime(), adjustedPath);
-        snapshot = (String[]) snapshotList.toArray(new String[snapshotList.size()]);
-
-        return this;    
+        dir = JRubyFile.createResource(getRuntime().getCurrentDirectory(), adjustedPath);
+        snapshot = RubyDir.getEntries(getRuntime(), adjustedPath);
+        return this;
     }
 
 // ----- Ruby Class Methods ----------------------------------------------------
@@ -373,68 +371,32 @@ public class RubyDir extends RubyObject {
         String adjustedPath = RubyFile.adjustRootPathOnWindows(runtime, path, null);
         checkDirIsTwoSlashesOnWindows(runtime, adjustedPath);
 
-        Object[] files = getEntries(runtime, adjustedPath).toArray();
+        Object[] files = getEntries(runtime, adjustedPath);
         return runtime.newArrayNoCopy(JavaUtil.convertJavaArrayToRuby(runtime, files));
     }
 
-    private static List<String> getEntries(Ruby runtime, String path) {
+    private static String[] getEntries(Ruby runtime, String path) {
         if (!RubyFileTest.directory_p(runtime, RubyString.newString(runtime, path)).isTrue()) {
             throw runtime.newErrnoENOENTError("No such directory: " + path);
         }
 
-        if (path.startsWith("jar:")) path = path.substring(4);
-        if (path.startsWith("file:")) return entriesIntoAJarFile(runtime, path);
+        String cwd = runtime.getCurrentDirectory();
+        FileResource resource = JRubyFile.createResource(cwd, path);
 
-        return entriesIntoADirectory(runtime, path);
-    }
+        String[] entries = resource.list();
+        List<String> entryList = new ArrayList(entries.length + 2);
 
-    private static List<String> entriesIntoADirectory(Ruby runtime, String path) {
-        final JRubyFile directory = JRubyFile.create(runtime.getCurrentDirectory(), path);
-
-        List<String> fileList = getContents(directory);
-        fileList.add(0, ".");
-        fileList.add(1, "..");
-        return fileList;
-    }
-
-    private static List<String> entriesIntoAJarFile(Ruby runtime, String path) {
-        String file = path.substring(5);
-        int bang = file.indexOf('!');
-        if (bang == -1) {
-          return entriesIntoADirectory(runtime, path.substring(5));
-        }
-        if (bang == file.length() - 1) {
-            file = file + "/";
-        }
-        String jar = file.substring(0, bang);
-        String after = file.substring(bang + 2);
-        if (after.length() > 0 && after.charAt(after.length() - 1) != '/') {
-            after = after + "/";
-        }
-        JarFile jf;
-        try {
-            jf = new JarFile(jar);
-        } catch (IOException e) {
-            throw new RuntimeException("Valid JAR file expected", e);
+        for (String specialParent : new String[] { ".", ".." }) {
+          if (JRubyFile.createResource(cwd, path + File.separator + specialParent).exists()) {
+            entryList.add(specialParent);
+          }
         }
 
-        List<String> fileList = new ArrayList<String>();
-        Enumeration<? extends ZipEntry> entries = jf.entries();
-        while (entries.hasMoreElements()) {
-            String zipEntry = entries.nextElement().getName();
-            if (zipEntry.matches(after + "[^/]+(/.*)?")) {
-                int end_index = zipEntry.indexOf('/', after.length());
-                if (end_index == -1) {
-                    end_index = zipEntry.length();
-                }
-                String entry_str = zipEntry.substring(after.length(), end_index);
-                if (!fileList.contains(entry_str)) {
-                    fileList.add(entry_str);
-                }
-            }
+        for (String entry : entries) {
+          entryList.add(entry);
         }
 
-        return fileList;
+        return entryList.toArray(new String[0]);
     }
 
     // MRI behavior: just plain '//' or '\\\\' are considered illegal on Windows.
@@ -826,7 +788,7 @@ public class RubyDir extends RubyObject {
      * Returns the contents of the specified <code>directory</code> as an
      * <code>ArrayList</code> containing the names of the files as Java Strings.
      */
-    protected static List<String> getContents(File directory) {
+    protected static List<String> getContents(FileResource directory) {
         String[] contents = directory.list();
         List<String> result = new ArrayList<String>();
 
