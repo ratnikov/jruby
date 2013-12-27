@@ -1,5 +1,7 @@
 package org.jruby.util;
 
+import jnr.posix.FileStat;
+
 /**
  * This is a shared interface for files loaded as {@link java.io.File} and {@link java.util.zip.ZipEntry}.
  */
@@ -22,4 +24,7 @@ public interface FileResource {
     String[] list();
 
     boolean isSymLink();
+
+    FileStat stat();
+    FileStat lstat();
 }

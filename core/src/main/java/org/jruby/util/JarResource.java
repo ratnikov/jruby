@@ -1,5 +1,6 @@
 package org.jruby.util;
 
+import jnr.posix.FileStat;
 import org.jruby.Ruby;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -55,9 +56,11 @@ public abstract class JarResource implements FileResource {
     }
 
     protected final JarFile jar;
+    private final JarFileStat fileStat;
 
     protected JarResource(JarFile jar) {
         this.jar = jar;
+        this.fileStat = new JarFileStat(this);
     }
 
     @Override
@@ -90,6 +93,17 @@ public abstract class JarResource implements FileResource {
         // symbolic links). Also see:
         // http://www.linuxquestions.org/questions/linux-general-1/how-to-create-jar-files-with-symbolic-links-639381/
         return false;
+    }
+
+    @Override
+    public FileStat stat() {
+        return fileStat;
+    }
+
+    @Override
+    public FileStat lstat() {
+      // jars don't have symbolic links, so lstat is no different than regular stat
+      return stat();
     }
 
     abstract protected String entryName();
