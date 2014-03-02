@@ -34,6 +34,7 @@ import static org.jruby.util.io.ModeFlags.WRONLY;
 
 import java.io.File;
 import java.io.FileDescriptor;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -781,12 +782,13 @@ public class ChannelDescriptor {
      * @return a new ChannelDescriptor based on the specified parameters
      */
     public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix, ClassLoader classLoader) throws RaisableException {
-        boolean fileCreated = false;
         if (path.equals("/dev/null") || path.equalsIgnoreCase("nul:") || path.equalsIgnoreCase("nul")) {
             Channel nullChannel = new NullChannel();
             // FIXME: don't use RubyIO for this
             return new ChannelDescriptor(nullChannel, flags);
-        } else if (path.startsWith("file:")) {
+        }
+
+        if (path.startsWith("file:")) {
             int bangIndex = path.indexOf("!");
             if (bangIndex > 0) {
                 String filePath = path.substring(5, bangIndex);
@@ -821,103 +823,117 @@ public class ChannelDescriptor {
                     throw new IOError(ioe);
                 }
             }
-        } else if (path.startsWith("classpath:/") && classLoader != null) {
+        }
+
+        if (path.startsWith("classpath:/") && classLoader != null) {
             path = path.substring("classpath:/".length());
             InputStream is = classLoader.getResourceAsStream(path);
             // FIXME: don't use RubyIO for this
             return new ChannelDescriptor(Channels.newChannel(is), flags);
-        } else {
-            JRubyFile theFile = JRubyFile.create(cwd,path);
+        }
 
-            if (theFile.isDirectory() && flags.isWritable()) {
-                throw new ErrnoException.FileIsDirectory(path);
-            }
-
-            if (flags.isCreate()) {
-                try {
-                    fileCreated = theFile.createNewFile();
-                    
-                    if (!fileCreated && flags.isExclusive()) {
-                        throw new ErrnoException.FileExists(path);
-                    }
-                } catch (IOException ioe) {
-                    // See JRUBY-4380.
-                    // MRI behavior: raise Errno::ENOENT in case
-                    // when the directory for the file doesn't exist.
-                    // Java in such cases just throws IOException.
-                    File parent = theFile.getParentFile();
-                    if (parent != null && parent != theFile && !parent.exists()) {
-                        throw new ErrnoException.NotFound(path);
-                    } else if (!theFile.canWrite()) {
-                        throw new ErrnoException.PermissionDenied(path);
-                    } else {
-                        // for all other IO errors, just re-throw the original exception
-                        throw new IOError(ioe);
-                    }
-                }
-            } else {
-                if (!theFile.exists()) {
-                    throw new ErrnoException.NotFound(path);
-                }
-            }
-
-            FileDescriptor fileDescriptor;
-            FileChannel fileChannel;
-            
-            /* Because RandomAccessFile does not provide a way to pass append
-             * mode, we must manually seek if using RAF. FileOutputStream,
-             * however, does properly honor append mode at the lowest levels,
-             * reducing append write costs when we're only doing writes.
-             * 
-             * The code here will use a FileOutputStream if we're only writing,
-             * setting isInAppendMode to true to disable our manual seeking.
-             * 
-             * RandomAccessFile does not handle append for us, so if we must
-             * also be readable we pass false for isInAppendMode to indicate
-             * we need manual seeking.
-             */
-            boolean isInAppendMode;
-            try{
-                if (flags.isWritable() && !flags.isReadable()) {
-                    FileOutputStream fos = new FileOutputStream(theFile, flags.isAppendable());
-                    fileChannel = fos.getChannel();
-                    fileDescriptor = fos.getFD();
-                    isInAppendMode = true;
-                } else {
-                    RandomAccessFile raf = new RandomAccessFile(theFile, flags.toJavaModeString());
-                    fileChannel = raf.getChannel();
-                    fileDescriptor = raf.getFD();
-                    isInAppendMode = false;
-                }
+        File theFile = JRubyFile.create(cwd, path);
+        if (flags.isCreate()) {
+            boolean fileCreated;
+            try {
+                fileCreated = theFile.createNewFile();
             } catch (IOException ioe) {
-                throw new IOError(ioe);
+                // See JRUBY-4380.
+                // MRI behavior: raise Errno::ENOENT in case
+                // when the directory for the file doesn't exist.
+                // Java in such cases just throws IOException.
+                File parent = theFile.getParentFile();
+                if (parent != null && parent != theFile && !parent.exists()) {
+                    throw new ErrnoException.NotFound(path);
+                } else if (!theFile.canWrite()) {
+                    throw new ErrnoException.PermissionDenied(path);
+                } else {
+                    // for all other IO errors, we report it as general IO error
+                    throw new IOError(ioe);
+                }
             }
 
-            // call chmod after we created the RandomAccesFile
-            // because otherwise, the file could be read-only
-            if (fileCreated) {
-                // attempt to set the permissions, if we have been passed a POSIX instance,
-                // perm is > 0, and only if the file was created in this call.
+            if (!fileCreated && flags.isExclusive()) {
+                throw new ErrnoException.FileExists(path);
+            }
+
+            ChannelDescriptor descriptor = openFile(path, theFile, flags);
+
+            // attempt to set the permissions, if we have been passed a POSIX instance,
+            // perm is > 0, and only if the file was created in this call.
+            if (fileCreated && posix != null && perm > 0) {
                 if (posix != null && perm > 0) {
                     posix.chmod(theFile.getPath(), perm);
                 }
             }
 
-            try {
-                if (flags.isTruncate()) fileChannel.truncate(0);
-            } catch (IOException ioe) {
-                if (ioe.getMessage().equals("Illegal seek")) {
-                    // ignore; it's a pipe or fifo that can't be truncated
-                } else {
-                    throw new IOError(ioe);
-                }
-            }
-
-            // TODO: append should set the FD to end, no? But there is no seek(int) in libc!
-            //if (modes.isAppendable()) seek(0, Stream.SEEK_END);
-
-            return new ChannelDescriptor(fileChannel, flags, fileDescriptor, isInAppendMode);
+            return descriptor;
         }
+
+        if (theFile.isDirectory() && flags.isWritable()) {
+            throw new ErrnoException.FileIsDirectory(path);
+        }
+
+        if (!theFile.exists()) {
+            throw new ErrnoException.NotFound(path);
+        }
+
+        return openFile(path, theFile, flags);
+    }
+
+    public static ChannelDescriptor openFile(String path, File file, ModeFlags flags) throws RaisableException {
+        FileDescriptor fileDescriptor;
+        FileChannel fileChannel;
+
+        /* Because RandomAccessFile does not provide a way to pass append
+         * mode, we must manually seek if using RAF. FileOutputStream,
+         * however, does properly honor append mode at the lowest levels,
+         * reducing append write costs when we're only doing writes.
+         *
+         * The code here will use a FileOutputStream if we're only writing,
+         * setting isInAppendMode to true to disable our manual seeking.
+         *
+         * RandomAccessFile does not handle append for us, so if we must
+         * also be readable we pass false for isInAppendMode to indicate
+         * we need manual seeking.
+         */
+        boolean isInAppendMode;
+        try{
+            if (flags.isWritable() && !flags.isReadable()) {
+                FileOutputStream fos = new FileOutputStream(file, flags.isAppendable());
+                fileChannel = fos.getChannel();
+                fileDescriptor = fos.getFD();
+                isInAppendMode = true;
+            } else {
+                RandomAccessFile raf = new RandomAccessFile(file, flags.toJavaModeString());
+                fileChannel = raf.getChannel();
+                fileDescriptor = raf.getFD();
+                isInAppendMode = false;
+            }
+        } catch (FileNotFoundException fnfe) {
+            // Jave throws FileNotFoundException both if the file doesn't exist or there were
+            // permission issues, but Ruby needs to disambiguate those two cases
+            throw file.exists() ?
+                new ErrnoException.PermissionDenied(path) :
+                new ErrnoException.NotFound(path);
+        } catch (IOException ioe) {
+            throw new IOError(ioe);
+        }
+
+        try {
+            if (flags.isTruncate()) fileChannel.truncate(0);
+        } catch (IOException ioe) {
+            if (ioe.getMessage().equals("Illegal seek")) {
+                // ignore; it's a pipe or fifo that can't be truncated
+            } else {
+                throw new IOError(ioe);
+            }
+        }
+
+        // TODO: append should set the FD to end, no? But there is no seek(int) in libc!
+        //if (modes.isAppendable()) seek(0, Stream.SEEK_END);
+
+        return new ChannelDescriptor(fileChannel, flags, fileDescriptor, isInAppendMode);
     }
     
     /**
