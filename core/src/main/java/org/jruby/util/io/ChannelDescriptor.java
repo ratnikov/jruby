@@ -83,7 +83,6 @@ import org.jruby.util.log.LoggerFactory;
  * POSIX dup also allows independent positioning information.
  */
 public class ChannelDescriptor {
-
     private static final Logger LOG = LoggerFactory.getLogger("ChannelDescriptor");
 
     /** Whether to log debugging information */
@@ -717,13 +716,11 @@ public class ChannelDescriptor {
      * @return a new ChannelDescriptor based on the specified parameters
      * @throws java.io.FileNotFoundException if the target file could not be found
      * and the create flag was not specified
-     * @throws org.jruby.util.io.DirectoryAsFileException if the target file is
-     * a directory being opened as a file
      * @throws org.jruby.util.io.FileExistsException if the target file should
      * be created anew, but already exists
      * @throws java.io.IOException if there is an exception during IO
      */
-    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags) throws RaisableException, FileNotFoundException, DirectoryAsFileException, FileExistsException, IOException {
+    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags) throws RaisableException, FileNotFoundException, FileExistsException, IOException {
         return open(cwd, path, flags, 0, null, null);
     }
     
@@ -740,13 +737,11 @@ public class ChannelDescriptor {
      * @return a new ChannelDescriptor based on the specified parameters
      * @throws java.io.FileNotFoundException if the target file could not be found
      * and the create flag was not specified
-     * @throws org.jruby.util.io.DirectoryAsFileException if the target file is
-     * a directory being opened as a file
      * @throws org.jruby.util.io.FileExistsException if the target file should
      * be created anew, but already exists
      * @throws java.io.IOException if there is an exception during IO
      */
-    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, ClassLoader classLoader) throws RaisableException, FileNotFoundException, DirectoryAsFileException, FileExistsException, IOException {
+    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, ClassLoader classLoader) throws RaisableException, FileNotFoundException, FileExistsException, IOException {
         return open(cwd, path, flags, 0, null, classLoader);
     }
 
@@ -764,13 +759,11 @@ public class ChannelDescriptor {
      * @return a new ChannelDescriptor based on the specified parameters
      * @throws java.io.FileNotFoundException if the target file could not be found
      * and the create flag was not specified
-     * @throws org.jruby.util.io.DirectoryAsFileException if the target file is
-     * a directory being opened as a file
      * @throws org.jruby.util.io.FileExistsException if the target file should
      * be created anew, but already exists
      * @throws java.io.IOException if there is an exception during IO
      */
-    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix) throws RaisableException, FileNotFoundException, DirectoryAsFileException, FileExistsException, IOException {
+    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix) throws RaisableException, FileNotFoundException, FileExistsException, IOException {
         return open(cwd, path, flags, perm, posix, null);
     }
     
@@ -789,13 +782,11 @@ public class ChannelDescriptor {
      * @return a new ChannelDescriptor based on the specified parameters
      * @throws java.io.FileNotFoundException if the target file could not be found
      * and the create flag was not specified
-     * @throws org.jruby.util.io.DirectoryAsFileException if the target file is
-     * a directory being opened as a file
      * @throws org.jruby.util.io.FileExistsException if the target file should
      * be created anew, but already exists
      * @throws java.io.IOException if there is an exception during IO
      */
-    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix, ClassLoader classLoader) throws RaisableException, FileNotFoundException, DirectoryAsFileException, FileExistsException, IOException {
+    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix, ClassLoader classLoader) throws RaisableException, FileNotFoundException, FileExistsException, IOException {
         boolean fileCreated = false;
         if (path.equals("/dev/null") || path.equalsIgnoreCase("nul:") || path.equalsIgnoreCase("nul")) {
             Channel nullChannel = new NullChannel();
@@ -837,7 +828,7 @@ public class ChannelDescriptor {
             JRubyFile theFile = JRubyFile.create(cwd,path);
 
             if (theFile.isDirectory() && flags.isWritable()) {
-                throw new DirectoryAsFileException();
+                throw new ErrnoException.FileIsDirectory(path);
             }
 
             if (flags.isCreate()) {
