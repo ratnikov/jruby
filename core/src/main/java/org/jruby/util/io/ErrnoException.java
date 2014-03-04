@@ -13,6 +13,14 @@ class ErrnoException extends RaisableException {
         public FileExists(String path) { super("EEXIST", path); }
     }
 
+    static class NotFound extends ErrnoException {
+        public NotFound(String path) { super("ENOENT", path); }
+    }
+
+    static class PermissionDenied extends ErrnoException {
+        public PermissionDenied(String path) { super("EACCES", path); }
+    }
+
     private final String path;
     private final String errnoClass;
 
