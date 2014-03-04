@@ -1238,10 +1238,6 @@ public class RubyIO extends RubyObject implements IOEncodable {
             fileno = descriptor.getFileno();
         } catch (RaisableException raisable) {
             throw raisable.newRaiseException(runtime);
-        } catch (FileNotFoundException fnfe) {
-            throw runtime.newErrnoENOENTError(path);
-        } catch (IOException ioe) {
-            throw runtime.newIOErrorFromException(ioe);
         }
         return runtime.newFixnum(fileno);
     }
