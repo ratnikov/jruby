@@ -88,7 +88,6 @@ import org.jruby.util.io.BadDescriptorException;
 import org.jruby.util.io.ChannelStream;
 import org.jruby.util.io.InvalidValueException;
 import org.jruby.util.io.PipeException;
-import org.jruby.util.io.FileExistsException;
 import org.jruby.util.io.STDIO;
 import org.jruby.util.io.OpenFile;
 import org.jruby.util.io.ChannelDescriptor;
@@ -341,11 +340,7 @@ public class RubyIO extends RubyObject implements IOEncodable {
             openFile.setPath(path);
 
             if (openFile.getMainStream() == null) {
-                try {
-                    openFile.setMainStream(ChannelStream.fopen(runtime, path, modes.getModeFlags()));
-                } catch (FileExistsException fee) {
-                    throw runtime.newErrnoEEXISTError(path);
-                }
+                openFile.setMainStream(ChannelStream.fopen(runtime, path, modes.getModeFlags()));
 
                 if (openFile.getPipeStream() != null) {
                     openFile.getPipeStream().fclose();
@@ -1182,8 +1177,6 @@ public class RubyIO extends RubyObject implements IOEncodable {
             throw raisable.newRaiseException(runtime);
         } catch (FileNotFoundException fnfe) {
             throw runtime.newErrnoENOENTError(path);
-        } catch (FileExistsException fee) {
-            throw runtime.newErrnoEEXISTError(path);
         } catch (IOException ioe) {
             throw runtime.newIOErrorFromException(ioe);
         }

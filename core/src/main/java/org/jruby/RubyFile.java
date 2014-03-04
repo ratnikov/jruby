@@ -82,7 +82,6 @@ import org.jruby.util.io.Stream;
 import org.jruby.util.io.ChannelStream;
 import org.jruby.util.io.IOOptions;
 import org.jruby.util.io.BadDescriptorException;
-import org.jruby.util.io.FileExistsException;
 import org.jruby.util.io.InvalidValueException;
 import org.jruby.util.io.PipeException;
 import org.jruby.exceptions.RaisableException;
@@ -1295,8 +1294,6 @@ public class RubyFile extends RubyIO implements EncodingCapable {
                 throw getRuntime().newErrnoEACCESError(path);
             }
             throw getRuntime().newErrnoENOENTError(path);
-        } catch (FileExistsException fee) {
-            throw getRuntime().newErrnoEEXISTError(path);
         } catch (IOException ioe) {
             throw getRuntime().newIOErrorFromException(ioe);
         }
@@ -1326,8 +1323,6 @@ public class RubyFile extends RubyIO implements EncodingCapable {
             }
             
             throw getRuntime().newErrnoENOENTError(path);
-        } catch (FileExistsException ex) {
-            throw getRuntime().newErrnoEEXISTError(path);
         } catch (IOException ex) {
             throw getRuntime().newIOErrorFromException(ex);
         } catch (InvalidValueException ex) {

@@ -716,11 +716,9 @@ public class ChannelDescriptor {
      * @return a new ChannelDescriptor based on the specified parameters
      * @throws java.io.FileNotFoundException if the target file could not be found
      * and the create flag was not specified
-     * @throws org.jruby.util.io.FileExistsException if the target file should
-     * be created anew, but already exists
      * @throws java.io.IOException if there is an exception during IO
      */
-    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags) throws RaisableException, FileNotFoundException, FileExistsException, IOException {
+    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags) throws RaisableException, FileNotFoundException, IOException {
         return open(cwd, path, flags, 0, null, null);
     }
     
@@ -737,11 +735,9 @@ public class ChannelDescriptor {
      * @return a new ChannelDescriptor based on the specified parameters
      * @throws java.io.FileNotFoundException if the target file could not be found
      * and the create flag was not specified
-     * @throws org.jruby.util.io.FileExistsException if the target file should
-     * be created anew, but already exists
      * @throws java.io.IOException if there is an exception during IO
      */
-    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, ClassLoader classLoader) throws RaisableException, FileNotFoundException, FileExistsException, IOException {
+    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, ClassLoader classLoader) throws RaisableException, FileNotFoundException, IOException {
         return open(cwd, path, flags, 0, null, classLoader);
     }
 
@@ -759,11 +755,9 @@ public class ChannelDescriptor {
      * @return a new ChannelDescriptor based on the specified parameters
      * @throws java.io.FileNotFoundException if the target file could not be found
      * and the create flag was not specified
-     * @throws org.jruby.util.io.FileExistsException if the target file should
-     * be created anew, but already exists
      * @throws java.io.IOException if there is an exception during IO
      */
-    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix) throws RaisableException, FileNotFoundException, FileExistsException, IOException {
+    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix) throws RaisableException, FileNotFoundException, IOException {
         return open(cwd, path, flags, perm, posix, null);
     }
     
@@ -782,11 +776,9 @@ public class ChannelDescriptor {
      * @return a new ChannelDescriptor based on the specified parameters
      * @throws java.io.FileNotFoundException if the target file could not be found
      * and the create flag was not specified
-     * @throws org.jruby.util.io.FileExistsException if the target file should
-     * be created anew, but already exists
      * @throws java.io.IOException if there is an exception during IO
      */
-    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix, ClassLoader classLoader) throws RaisableException, FileNotFoundException, FileExistsException, IOException {
+    public static ChannelDescriptor open(String cwd, String path, ModeFlags flags, int perm, POSIX posix, ClassLoader classLoader) throws RaisableException, FileNotFoundException, IOException {
         boolean fileCreated = false;
         if (path.equals("/dev/null") || path.equalsIgnoreCase("nul:") || path.equalsIgnoreCase("nul")) {
             Channel nullChannel = new NullChannel();
@@ -836,7 +828,7 @@ public class ChannelDescriptor {
                     fileCreated = theFile.createNewFile();
                     
                     if (!fileCreated && flags.isExclusive()) {
-                        throw new FileExistsException(path);
+                        throw new ErrnoException.FileExists(path);
                     }
                 } catch (IOException ioe) {
                     // See JRUBY-4380.
