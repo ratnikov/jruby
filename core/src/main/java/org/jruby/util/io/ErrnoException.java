@@ -9,6 +9,10 @@ class ErrnoException extends RaisableException {
         public FileIsDirectory(String path) { super("EISDIR", path); }
     }
 
+    static class FileExists extends ErrnoException {
+        public FileExists(String path) { super("EEXIST", path); }
+    }
+
     private final String path;
     private final String errnoClass;
 
