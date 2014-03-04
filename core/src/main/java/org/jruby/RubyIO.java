@@ -89,7 +89,6 @@ import org.jruby.util.io.ChannelStream;
 import org.jruby.util.io.InvalidValueException;
 import org.jruby.util.io.PipeException;
 import org.jruby.util.io.FileExistsException;
-import org.jruby.util.io.DirectoryAsFileException;
 import org.jruby.util.io.STDIO;
 import org.jruby.util.io.OpenFile;
 import org.jruby.util.io.ChannelDescriptor;
@@ -1246,8 +1245,6 @@ public class RubyIO extends RubyObject implements IOEncodable {
             throw raisable.newRaiseException(runtime);
         } catch (FileNotFoundException fnfe) {
             throw runtime.newErrnoENOENTError(path);
-        } catch (DirectoryAsFileException dafe) {
-            throw runtime.newErrnoEISDirError(path);
         } catch (FileExistsException fee) {
             throw runtime.newErrnoEEXISTError(path);
         } catch (IOException ioe) {

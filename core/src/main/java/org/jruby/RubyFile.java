@@ -79,7 +79,6 @@ import org.jruby.util.ByteList;
 import org.jruby.util.FileResource;
 import org.jruby.util.JRubyFile;
 import org.jruby.util.TypeConverter;
-import org.jruby.util.io.DirectoryAsFileException;
 import org.jruby.util.io.PermissionDeniedException;
 import org.jruby.util.io.Stream;
 import org.jruby.util.io.ChannelStream;
@@ -1314,8 +1313,6 @@ public class RubyFile extends RubyIO implements EncodingCapable {
                 throw getRuntime().newErrnoEACCESError(path);
             }
             throw getRuntime().newErrnoENOENTError(path);
-        } catch (DirectoryAsFileException dafe) {
-            throw getRuntime().newErrnoEISDirError();
         } catch (FileExistsException fee) {
             throw getRuntime().newErrnoEEXISTError(path);
         } catch (IOException ioe) {
@@ -1347,8 +1344,6 @@ public class RubyFile extends RubyIO implements EncodingCapable {
             }
             
             throw getRuntime().newErrnoENOENTError(path);
-        } catch (DirectoryAsFileException ex) {
-            throw getRuntime().newErrnoEISDirError();
         } catch (FileExistsException ex) {
             throw getRuntime().newErrnoEEXISTError(path);
         } catch (IOException ex) {
