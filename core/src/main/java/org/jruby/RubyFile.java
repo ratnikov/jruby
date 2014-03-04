@@ -86,6 +86,7 @@ import org.jruby.util.io.BadDescriptorException;
 import org.jruby.util.io.FileExistsException;
 import org.jruby.util.io.InvalidValueException;
 import org.jruby.util.io.PipeException;
+import org.jruby.exceptions.RaisableException;
 import org.jruby.exceptions.RaiseException;
 import org.jruby.runtime.Helpers;
 import org.jruby.runtime.encoding.EncodingService;
@@ -1282,6 +1283,8 @@ public class RubyFile extends RubyIO implements EncodingCapable {
             // TODO: check if too many open files, GC and try again
 
             return descriptor;
+        } catch (RaisableException raisable) {
+            throw raisable.newRaiseException(getRuntime());
         } catch (PermissionDeniedException pde) {
             // PDException can be thrown only when creating the file and
             // permission is denied.  See JavaDoc of PermissionDeniedException.
