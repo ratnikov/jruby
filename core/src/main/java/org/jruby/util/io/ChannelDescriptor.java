@@ -62,6 +62,7 @@ import jnr.unixsocket.UnixSocketChannel;
 import org.jruby.exceptions.RaisableException;
 import org.jruby.exceptions.RaiseException;
 import org.jruby.util.ByteList;
+import org.jruby.util.JarResource;
 import org.jruby.util.JRubyFile;
 import org.jruby.util.log.Logger;
 import org.jruby.util.log.LoggerFactory;
@@ -788,34 +789,21 @@ public class ChannelDescriptor {
             return new ChannelDescriptor(nullChannel, flags);
         }
 
+
         if (path.startsWith("file:")) {
-            int bangIndex = path.indexOf("!");
-            if (bangIndex > 0) {
-                String filePath = path.substring(5, bangIndex);
-                String internalPath = path.substring(bangIndex + 2);
-
-                if (!new File(filePath).exists()) {
+            if (path.indexOf('!') != -1) {
+                JarResource jarResource = JarResource.create(path);
+                if (jarResource != null) {
+                    return jarResource.openDescriptor(flags, posix, perm);
+                } else {
+                    // jar-like url, but no resource. means we didn't find anything
                     throw new ErrnoException.NotFound(path);
-                }
-
-                try {
-                    JarFile jf = new JarFile(filePath);
-                    ZipEntry entry = RubyFile.getFileEntry(jf, internalPath);
-
-                    if (entry == null) {
-                        throw new ErrnoException.NotFound(path);
-                    }
-
-                    InputStream is = jf.getInputStream(entry);
-                    // FIXME: don't use RubyIO for this
-                    return new ChannelDescriptor(Channels.newChannel(is), flags);
-                } catch (IOException ioe) {
-                    throw new IOError(ioe);
                 }
             } else {
                 try {
                     // raw file URL, just open directly
                     URL url = new URL(path);
+
                     InputStream is = url.openStream();
                     // FIXME: don't use RubyIO for this
                     return new ChannelDescriptor(Channels.newChannel(is), flags);

@@ -2,7 +2,12 @@ package org.jruby.util;
 
 import jnr.posix.FileStat;
 import jnr.posix.POSIX;
+import org.jruby.exceptions.RaisableException;
+import org.jruby.util.io.ChannelDescriptor;
+import org.jruby.util.io.ModeFlags;
+
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.jar.JarEntry;
@@ -53,9 +58,14 @@ public abstract class JarResource implements FileResource {
             return new JarDirectoryResource(jarPath, path, entries);
         }
 
-        JarEntry jarEntry = index.getJarEntry(path);
-        if (jarEntry != null) {
-            return new JarFileResource(jarPath, jarEntry);
+        try {
+            JarEntry jarEntry = index.getJarEntry(path);
+            if (jarEntry != null) {
+                InputStream jarEntryStream = index.jar.getInputStream(jarEntry);
+                return new JarFileResource(path, jarEntry, jarEntryStream);
+            }
+        } catch (IOException ioe) {
+            // Probably not a jar entry then
         }
 
         return null;
@@ -118,4 +128,6 @@ public abstract class JarResource implements FileResource {
     }
 
     abstract protected String entryName();
+
+    abstract public ChannelDescriptor openDescriptor(ModeFlags flags, POSIX posix, int perm) throws RaisableException;
 }
