@@ -51,8 +51,6 @@ import java.nio.channels.WritableByteChannel;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.jar.JarFile;
-import java.util.zip.ZipEntry;
 import org.jruby.Ruby;
 import org.jruby.RubyFile;
 
@@ -62,7 +60,6 @@ import jnr.unixsocket.UnixSocketChannel;
 import org.jruby.exceptions.RaisableException;
 import org.jruby.exceptions.RaiseException;
 import org.jruby.util.ByteList;
-import org.jruby.util.JarResource;
 import org.jruby.util.JRubyFile;
 import org.jruby.util.log.Logger;
 import org.jruby.util.log.LoggerFactory;
@@ -86,19 +83,6 @@ import org.jruby.util.log.LoggerFactory;
  * POSIX dup also allows independent positioning information.
  */
 public class ChannelDescriptor {
-    static class IOError extends RaisableException {
-        private final IOException ioe;
-
-        IOError(IOException ioe) { 
-            this.ioe = ioe;
-        }
-
-        @Override
-        public RaiseException newRaiseException(Ruby runtime) {
-            return runtime.newIOErrorFromException(ioe);
-        }
-    }
-
     private static final Logger LOG = LoggerFactory.getLogger("ChannelDescriptor");
 
     /** Whether to log debugging information */

@@ -65,13 +65,6 @@ class JarDirectoryResource extends JarResource {
     public ChannelDescriptor openDescriptor(ModeFlags flags, POSIX posix, int perm) throws RaisableException {
         // opening a directory seems to blow up with EACCESS in jruby (although MRI allows instantiation but blows up on read).
         // So mimicking that for now.
-        throw new IsDirectoryException();
-    }
-
-    private class IsDirectoryException extends RaisableException {
-        @Override
-        public RaiseException newRaiseException(Ruby runtime) {
-            return runtime.newErrnoEACCESError(absolutePath());
-        }
+        throw new ResourceException.PermissionDenied(absolutePath());
     }
 }

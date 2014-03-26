@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-public abstract class JarResource implements FileResource {
+abstract class JarResource implements FileResource {
     private static Pattern PREFIX_MATCH = Pattern.compile("^(?:jar:)?(?:file:)?(.*)$");
 
     private static final JarCache jarCache = new JarCache();

@@ -5,7 +5,6 @@ import jnr.posix.POSIX;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.exceptions.RaisableException;
 import org.jruby.util.io.ChannelDescriptor;
-import org.jruby.util.io.ErrnoException;
 import org.jruby.util.io.ModeFlags;
 
 class EmptyFileResource implements FileResource {
@@ -88,6 +87,6 @@ class EmptyFileResource implements FileResource {
 
     @Override
     public ChannelDescriptor openDescriptor(ModeFlags flags, POSIX posix, int perm) throws RaisableException {
-        throw new ErrnoException.NotFound(absolutePath());
+        throw new ResourceException.NotFound(absolutePath());
     }
 }

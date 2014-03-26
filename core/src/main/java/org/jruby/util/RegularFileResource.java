@@ -17,7 +17,6 @@ import org.jruby.Ruby;
 import org.jruby.RubyFile;
 import org.jruby.platform.Platform;
 import org.jruby.util.io.ChannelDescriptor;
-import org.jruby.util.io.ErrnoException;
 import org.jruby.util.io.ModeFlags;
 import org.jruby.exceptions.RaisableException;
 import org.jruby.exceptions.RaiseException;
@@ -145,9 +144,9 @@ class RegularFileResource implements FileResource {
                 // Java in such cases just throws IOException.
                 File parent = file.getParentFile();
                 if (parent != null && parent != file && !parent.exists()) {
-                    throw new ErrnoException.NotFound(absolutePath());
+                    throw new ResourceException.NotFound(absolutePath());
                 } else if (!file.canWrite()) {
-                    throw new ErrnoException.PermissionDenied(absolutePath());
+                    throw new ResourceException.PermissionDenied(absolutePath());
                 } else {
                     // for all other IO errors, we report it as general IO error
                     throw new IOError(ioe);
@@ -155,7 +154,7 @@ class RegularFileResource implements FileResource {
             }
 
             if (!fileCreated && flags.isExclusive()) {
-                throw new ErrnoException.FileExists(absolutePath());
+                throw new ResourceException.FileExists(absolutePath());
             }
 
             ChannelDescriptor descriptor = createDescriptor(flags);
@@ -172,11 +171,11 @@ class RegularFileResource implements FileResource {
         }
 
         if (file.isDirectory() && flags.isWritable()) {
-            throw new ErrnoException.FileIsDirectory(absolutePath());
+            throw new ResourceException.FileIsDirectory(absolutePath());
         }
 
         if (!file.exists()) {
-            throw new ErrnoException.NotFound(absolutePath());
+            throw new ResourceException.NotFound(absolutePath());
         }
 
         return createDescriptor(flags);
@@ -215,8 +214,8 @@ class RegularFileResource implements FileResource {
             // Jave throws FileNotFoundException both if the file doesn't exist or there were
             // permission issues, but Ruby needs to disambiguate those two cases
             throw file.exists() ?
-                new ErrnoException.PermissionDenied(absolutePath()) :
-                new ErrnoException.NotFound(absolutePath());
+                new ResourceException.PermissionDenied(absolutePath()) :
+                new ResourceException.NotFound(absolutePath());
         } catch (IOException ioe) {
             throw new IOError(ioe);
         }
