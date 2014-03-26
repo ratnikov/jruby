@@ -128,6 +128,4 @@ public abstract class JarResource implements FileResource {
     }
 
     abstract protected String entryName();
-
-    abstract public ChannelDescriptor openDescriptor(ModeFlags flags, POSIX posix, int perm) throws RaisableException;
 }

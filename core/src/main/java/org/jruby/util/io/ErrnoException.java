@@ -4,20 +4,20 @@ import org.jruby.Ruby;
 import org.jruby.exceptions.RaisableException;
 import org.jruby.exceptions.RaiseException;
 
-class ErrnoException extends RaisableException {
-    static class FileIsDirectory extends ErrnoException {
+public class ErrnoException extends RaisableException {
+    public static class FileIsDirectory extends ErrnoException {
         public FileIsDirectory(String path) { super("EISDIR", path); }
     }
 
-    static class FileExists extends ErrnoException {
+    public static class FileExists extends ErrnoException {
         public FileExists(String path) { super("EEXIST", path); }
     }
 
-    static class NotFound extends ErrnoException {
+    public static class NotFound extends ErrnoException {
         public NotFound(String path) { super("ENOENT", path); }
     }
 
-    static class PermissionDenied extends ErrnoException {
+    public static class PermissionDenied extends ErrnoException {
         public PermissionDenied(String path) { super("EACCES", path); }
     }
 
