@@ -143,8 +143,4 @@ public class LoadServiceResource {
             return absolutePath = resource.toString();
         }
     }
-
-    public boolean isAbsolute() {
-        return absolute;
-    }
 }

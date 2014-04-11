@@ -55,7 +55,7 @@ public class ExternalScript implements Library {
             } else {
                 java.io.File path = resource.getPath();
 
-                if(path != null && !resource.isAbsolute()) {
+                if(path != null && !path.isAbsolute()) {
                     // Note: We use RubyFile's canonicalize rather than Java's,
                     // because Java's will follow symlinks and result in __FILE__
                     // being set to the target of the symlink rather than the
