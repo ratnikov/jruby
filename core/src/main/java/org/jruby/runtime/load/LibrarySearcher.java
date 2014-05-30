@@ -70,6 +70,7 @@ class LibrarySearcher {
     
     if (library == null) library = findBuiltinLibrary(baseName, suffixType);
     if (library == null) library = findResourceLibrary(baseName, suffixType);
+    if (library == null) library = findServiceLibrary(baseName, suffixType);
 
     return library;
   }
@@ -84,6 +85,11 @@ class LibrarySearcher {
       }
     }
     return null;
+  }
+
+  private FoundLibrary findServiceLibrary(String name, SuffixType ignored) {
+    Library extensionLibrary = ClassExtensionLibrary.tryFind(runtime, name);
+    return extensionLibrary != null ? new FoundLibrary(extensionLibrary, name) : null;
   }
 
   private FoundLibrary findResourceLibrary(String baseName, SuffixType suffixType) {
@@ -224,53 +230,11 @@ class LibrarySearcher {
         runtime.newIOErrorFromException(badUrl);
       }
 
-      loadJarService(runtime, wrap);
-    }
-
-    private void loadJarService(Ruby runtime, boolean wrap) {
-      // Create package name, by splitting on / and joining all but the last elements with a ".", and downcasing them.
-      String[] all = searchName.split("/");
-
-      StringBuilder finName = new StringBuilder();
-      for(int i=0, j=(all.length-1); i<j; i++) {
-        finName.append(all[i].toLowerCase()).append(".");
+      // If an associated Service library exists, load it as well
+      ClassExtensionLibrary serviceExtension = ClassExtensionLibrary.tryFind(runtime, searchName);
+      if (serviceExtension != null) {
+        serviceExtension.load(runtime, wrap);
       }
-
-      try {
-        // Make the class name look nice, by splitting on _ and capitalize each segment, then joining
-        // the, together without anything separating them, and last put on "Service" at the end.
-        String[] last = all[all.length-1].split("_");
-        for(int i=0, j=last.length; i<j; i++) {
-          if ("".equals(last[i])) break;
-          finName.append(Character.toUpperCase(last[i].charAt(0))).append(last[i].substring(1));
-        }
-        finName.append("Service");
-
-        // We don't want a package name beginning with dots, so we remove them
-        String className = finName.toString().replaceAll("^\\.*","");
-
-        // quietly try to load the class
-        Class theClass = runtime.getJavaSupport().loadJavaClass(className);
-
-        runtime.loadExtension(className + ".java", BasicLibraryService.class.cast(theClass.newInstance()), wrap);
-        //debugLogFound("jarWithExtension", className);
-      } catch (ClassNotFoundException cnfe) {
-        if (runtime.isDebug()) cnfe.printStackTrace();
-        // we ignore this and assume the jar is not an extension
-      } catch (UnsupportedClassVersionError ucve) {
-        if (runtime.isDebug()) ucve.printStackTrace();
-        throw runtime.newLoadError("JRuby ext built for wrong Java version in `" + finName + "': " + ucve, finName.toString());
-      } catch (InstantiationException ie) {
-        throw newServiceLoadError(runtime, finName.toString(), ie);
-      } catch (IllegalAccessException iae) {
-        throw newServiceLoadError(runtime, finName.toString(), iae);
-      }
-
-    }
-
-    private RaiseException newServiceLoadError(Ruby runtime, String serviceClass, Exception e) {
-      if (runtime.isDebug()) e.printStackTrace();
-      return runtime.newLoadError("Exception loading extension `" + serviceClass + "`: " + e, serviceClass);
     }
   }
 }

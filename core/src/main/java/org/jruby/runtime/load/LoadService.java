@@ -779,58 +779,12 @@ public class LoadService {
 
         public boolean trySearch(SearchState state) {
             debugLogTry("jarWithExtension", state.searchFile);
-            
+
             // This code exploits the fact that all .jar files will be found for the JarredScript feature.
             // This is where the basic extension mechanism gets fixed
             Library oldLibrary = state.library;
-
-            // Create package name, by splitting on / and joining all but the last elements with a ".", and downcasing them.
-            String[] all = state.searchFile.split("/");
-
-            StringBuilder finName = new StringBuilder();
-            for(int i=0, j=(all.length-1); i<j; i++) {
-                finName.append(all[i].toLowerCase()).append(".");
-            }
-
-            try {
-                // Make the class name look nice, by splitting on _ and capitalize each segment, then joining
-                // the, together without anything separating them, and last put on "Service" at the end.
-                String[] last = all[all.length-1].split("_");
-                for(int i=0, j=last.length; i<j; i++) {
-                    if ("".equals(last[i])) break;
-                    finName.append(Character.toUpperCase(last[i].charAt(0))).append(last[i].substring(1));
-                }
-                finName.append("Service");
-
-                // We don't want a package name beginning with dots, so we remove them
-                String className = finName.toString().replaceAll("^\\.*","");
-
-                // If there is a jar-file with the required name, we add this to the class path.
-                if(state.library instanceof JarredScript) {
-                    // It's _really_ expensive to check that the class actually exists in the Jar, so
-                    // we don't do that now.
-                    URL jarURL = ((JarredScript)state.library).getResource().getURL();
-                    runtime.getJRubyClassLoader().addURL(jarURL);
-                    debugLogFound("jarWithoutExtension", jarURL.toString());
-                }
-
-                // quietly try to load the class
-                Class theClass = runtime.getJavaSupport().loadJavaClass(className);
-                state.library = new ClassExtensionLibrary(className + ".java", theClass);
-                debugLogFound("jarWithExtension", className);
-            } catch (ClassNotFoundException cnfe) {
-                if (runtime.isDebug()) cnfe.printStackTrace();
-                // we ignore this and assume the jar is not an extension
-            } catch (UnsupportedClassVersionError ucve) {
-                if (runtime.isDebug()) ucve.printStackTrace();
-                throw runtime.newLoadError("JRuby ext built for wrong Java version in `" + finName + "': " + ucve, finName.toString());
-            } catch (IOException ioe) {
-                if (runtime.isDebug()) ioe.printStackTrace();
-                throw runtime.newLoadError("IOException loading extension `" + finName + "`: " + ioe, finName.toString());
-            } catch (Exception e) {
-                if (runtime.isDebug()) e.printStackTrace();
-                throw runtime.newLoadError("Exception loading extension `" + finName + "`: " + e, finName.toString());
-            }
+            state.library = ClassExtensionLibrary.tryFind(runtime, state.searchFile);
+            debugLogFound("jarWithExtension", state.searchFile);
 
             // If there was a good library before, we go back to that
             if(state.library == null && oldLibrary != null) {
