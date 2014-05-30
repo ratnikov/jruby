@@ -152,9 +152,11 @@ class LibrarySearcher {
 
       FileResource resource = JRubyFile.createResource(runtime, pathWithSuffix);
       if (resource.exists()) {
+        String scriptName = resolveLoadName(resource, searchName + suffix);
+
         return new FoundLibrary(
-            new ResourceLibrary(searchName, fullPath, resource, suffix),
-            resolveLoadName(resource, searchName + suffix));
+            new ResourceLibrary(searchName, scriptName, resource),
+            scriptName);
       }
     }
 
@@ -167,15 +169,13 @@ class LibrarySearcher {
 
   static class ResourceLibrary implements Library {
     private final String searchName;
-    private final String ruby18File;
-    private final String suffix;
+    private final String scriptName;
     private final InputStream is;
     private final String location;
 
-    public ResourceLibrary(String searchName, String ruby18File, FileResource resource, String suffix) {
+    public ResourceLibrary(String searchName, String scriptName, FileResource resource) {
       this.searchName = searchName;
-      this.ruby18File = ruby18File;
-      this.suffix = suffix;
+      this.scriptName = scriptName;
       this.location = resource.absolutePath();
 
       // getInputStream may return a null to denote that it cannot really read the resource.
@@ -199,16 +199,8 @@ class LibrarySearcher {
       }
     }
 
-    protected String filename(Ruby runtime) {
-      if (runtime.is1_9()) {
-        return location;
-      }
-
-      return searchName.startsWith("./") ? searchName + suffix : ruby18File + suffix;
-    }
-
     private void loadScript(Ruby runtime, boolean wrap) {
-      runtime.loadFile(filename(runtime), is, wrap);
+      runtime.loadFile(scriptName, is, wrap);
     }
 
     private void loadClass(Ruby runtime, boolean wrap) {
@@ -218,7 +210,7 @@ class LibrarySearcher {
         // I don't like it, but until we restructure the code a bit more, we'll need to quietly let it by here.
         return;
       }
-      script.setFilename(filename(runtime));
+      script.setFilename(scriptName);
       runtime.loadScript(script, wrap);
     }
 
