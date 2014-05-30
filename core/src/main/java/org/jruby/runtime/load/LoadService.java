@@ -351,9 +351,7 @@ public class LoadService {
             SearchState state = new SearchState(file);
             state.prepareLoadSearch(file);
 
-            Library library = librarySearcher.findBySearchState(state);
-
-            if (library == null) library = findLibraryWithClassloaders(state, state.searchFile, state.suffixType);
+            Library library = findLibraryBySearchState(state);
 
             if (library == null) {
               throw runtime.newLoadError("no such file to load -- " + file, file);
@@ -410,13 +408,7 @@ public class LoadService {
         SearchState state = new SearchState(file);
         state.prepareRequireSearch(file);
 
-        for (LoadSearcher searcher : searchers) {
-            if (searcher.shouldTrySearch(state)) {
-                if (!searcher.trySearch(state)) {
-                    return null;
-                }
-            }
-        }
+        findLibraryBySearchState(state);
 
         return state;
     }
@@ -1035,6 +1027,19 @@ public class LoadService {
             }
             LOG.info( "found: " + resourceUrl );
         }
+    }
+
+    private Library findLibraryBySearchState(SearchState state) {
+      if (librarySearcher.findBySearchState(state) != null) {
+        // findBySearchState should fill the state already
+        return state.library;
+      }
+
+      Library library = findLibraryWithClassloaders(state, state.searchFile, state.suffixType);
+      if (library != null) {
+        state.library = library;
+      }
+      return library;
     }
 
     protected Library findBuiltinLibrary(SearchState state, String baseName, SuffixType suffixType) {
