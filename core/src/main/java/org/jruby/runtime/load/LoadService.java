@@ -215,6 +215,7 @@ public class LoadService {
     protected final Map<String, JarFile> jarFiles = new HashMap<String, JarFile>();
 
     protected final Ruby runtime;
+    protected final LibrarySearcher librarySearcher;
 
     public LoadService(Ruby runtime) {
         this.runtime = runtime;
@@ -223,6 +224,10 @@ public class LoadService {
         } else {
             loadTimer = new LoadTimer();
         }
+
+        this.librarySearcher = runtime.is1_8() ?
+            new LibrarySearcher.Ruby18(this) :
+            new LibrarySearcher(this);
     }
 
     /**
@@ -346,15 +351,14 @@ public class LoadService {
             SearchState state = new SearchState(file);
             state.prepareLoadSearch(file);
 
-            Library library = findBuiltinLibrary(state, state.searchFile, state.suffixType);
-            if (library == null) library = findLibraryWithoutCWD(state, state.searchFile, state.suffixType);
+            Library library = librarySearcher.findBySearchState(state);
+
+            if (library == null) library = findLibraryWithClassloaders(state, state.searchFile, state.suffixType);
 
             if (library == null) {
-                library = findLibraryWithClassloaders(state, state.searchFile, state.suffixType);
-                if (library == null) {
-                    throw runtime.newLoadError("no such file to load -- " + file, file);
-                }
+              throw runtime.newLoadError("no such file to load -- " + file, file);
             }
+
             try {
                 library.load(runtime, wrap);
             } catch (IOException e) {
