@@ -66,40 +66,43 @@ class LibrarySearcher {
   }
 
   public FoundLibrary findLibrary(String baseName, SuffixType suffixType) {
-    FoundLibrary library = null;
-    
-    if (library == null) library = findBuiltinLibrary(baseName, suffixType);
-    if (library == null) library = findResourceLibrary(baseName, suffixType);
-    if (library == null) library = findServiceLibrary(baseName, suffixType);
+    for (String suffix : suffixType.getSuffixes()) {
+      FoundLibrary library = null;
+      if (library == null) library = findBuiltinLibrary(baseName, suffix);
+      if (library == null) library = findResourceLibrary(baseName, suffix);
+      if (library == null) library = findServiceLibrary(baseName, suffix);
 
-    return library;
+      if (library != null) {
+        return library;
+      }
+    }
+
+    return null;
   }
 
-  private FoundLibrary findBuiltinLibrary(String name, SuffixType suffixType) {
-    for (String suffix : suffixType.getSuffixes()) {
-      String namePlusSuffix = name + suffix;
-      if (builtinLibraries.containsKey(namePlusSuffix)) {
-        return new FoundLibrary(
-            builtinLibraries.get(namePlusSuffix),
-            namePlusSuffix);
-      }
+  private FoundLibrary findBuiltinLibrary(String name, String suffix) {
+    String namePlusSuffix = name + suffix;
+    if (builtinLibraries.containsKey(namePlusSuffix)) {
+      return new FoundLibrary(
+          builtinLibraries.get(namePlusSuffix),
+          namePlusSuffix);
     }
     return null;
   }
 
-  private FoundLibrary findServiceLibrary(String name, SuffixType ignored) {
+  private FoundLibrary findServiceLibrary(String name, String ignored) {
     Library extensionLibrary = ClassExtensionLibrary.tryFind(runtime, name);
     return extensionLibrary != null ? new FoundLibrary(extensionLibrary, name) : null;
   }
 
-  private FoundLibrary findResourceLibrary(String baseName, SuffixType suffixType) {
+  private FoundLibrary findResourceLibrary(String baseName, String suffix) {
     if (baseName.startsWith("./")) {
-      return findFileResource(baseName, suffixType);
+      return findFileResource(baseName, suffix);
     }
 
     if (baseName.startsWith("../")) {
       // Path should be canonicalized in the findFileResource
-      return findFileResource(baseName, suffixType);
+      return findFileResource(baseName, suffix);
     }
 
     if (baseName.startsWith("~/")) {
@@ -111,12 +114,12 @@ class LibrarySearcher {
       String home = env.op_aref(runtime.getCurrentContext(), env_home).toString();
       String path = home + "/" + baseName.substring(2);
 
-      return findFileResource(path, suffixType);
+      return findFileResource(path, suffix);
     }
 
     // If path is absolute, try loading it directly
     if (Pattern.matches("([^:]+:)*/.*", baseName)) {
-      return findFileResource(baseName, suffixType);
+      return findFileResource(baseName, suffix);
     }
 
     // A hack because apparently test_load tests expect to be able to load file:foo.jar even if
@@ -124,7 +127,7 @@ class LibrarySearcher {
     // This probably shouldn't survive into real release.
     if (baseName.startsWith("file:")) {
       String name = baseName.substring(5);
-      FoundLibrary found = findFileResource(name, suffixType);
+      FoundLibrary found = findFileResource(name, suffix);
       if (found != null) {
         return found;
       }
@@ -132,7 +135,7 @@ class LibrarySearcher {
 
     for (IRubyObject loadPathEntry : loadService.loadPath.toJavaArray()) {
       String loadPathString = loadPathEntry.convertToString().asJavaString();
-      FoundLibrary library = findFileResourceWithLoadPath(baseName, suffixType, loadPathString);
+      FoundLibrary library = findFileResourceWithLoadPath(baseName, suffix, loadPathString);
       if (library != null) {
         return library;
       }
@@ -141,23 +144,21 @@ class LibrarySearcher {
     return null;
   }
 
-  private FoundLibrary findFileResource(String searchName, SuffixType suffixType) {
-    return findFileResourceWithLoadPath(searchName, suffixType, null);
+  private FoundLibrary findFileResource(String searchName, String suffix) {
+    return findFileResourceWithLoadPath(searchName, suffix, null);
   }
 
-  private FoundLibrary findFileResourceWithLoadPath(String searchName, SuffixType suffixType, String loadPath) {
-    for (String suffix : suffixType.getSuffixes()) {
-      String fullPath = loadPath != null ? loadPath + "/" + searchName : searchName;
-      String pathWithSuffix = fullPath + suffix;
+  private FoundLibrary findFileResourceWithLoadPath(String searchName, String suffix, String loadPath) {
+    String fullPath = loadPath != null ? loadPath + "/" + searchName : searchName;
+    String pathWithSuffix = fullPath + suffix;
 
-      FileResource resource = JRubyFile.createResource(runtime, pathWithSuffix);
-      if (resource.exists()) {
-        String scriptName = resolveLoadName(resource, searchName + suffix);
+    FileResource resource = JRubyFile.createResource(runtime, pathWithSuffix);
+    if (resource.exists()) {
+      String scriptName = resolveLoadName(resource, pathWithSuffix);
 
-        return new FoundLibrary(
-            new ResourceLibrary(searchName, scriptName, resource),
-            scriptName);
-      }
+      return new FoundLibrary(
+          new ResourceLibrary(searchName, scriptName, resource),
+          scriptName);
     }
 
     return null;
